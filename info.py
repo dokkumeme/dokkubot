@@ -49,9 +49,9 @@ COLLECTION_NAME = environ.get('COLLECTION_NAME', 'Dokku_files')
 # Others
 IS_VERIFY = bool(environ.get('IS_VERIFY', False))
 HOW_TO_VERIFY = environ.get('HOW_TO_VERIFY', "https://t.me/dmmstreaming/6")
-VERIFY2_URL = environ.get('VERIFY2_URL', "Sklinks.in")
+VERIFY2_URL = environ.get('VERIFY2_URL', "sklinks.in")
 VERIFY2_API = environ.get('VERIFY2_API', "b6bf8a19b2808e9c4c2077453ef8337ab450798e")
-SHORTLINK_URL = environ.get('SHORTLINK_URL', 'Sklinks.in')
+SHORTLINK_URL = environ.get('SHORTLINK_URL', 'sklinks.in')
 SHORTLINK_API = environ.get('SHORTLINK_API', 'b6bf8a19b2808e9c4c2077453ef8337ab450798e')
 IS_SHORTLINK = bool(environ.get('IS_SHORTLINK', True))
 DELETE_CHANNELS = [int(dch) if id_pattern.search(dch) else dch for dch in environ.get('DELETE_CHANNELS', '0').split()]
