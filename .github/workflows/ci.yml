@@ -15,6 +15,12 @@ jobs:
       with:
         node-version: '14'
 
+    - name: List files in root directory
+      run: ls -al
+
+    - name: List files in dokkubot directory
+      run: ls -al ./dokkubot
+
     - name: Install dependencies
       working-directory: ./dokkubot
       run: npm install
