@@ -22,7 +22,7 @@ jobs:
       run: ls -al
 
     - name: Install dependencies
-      working-directory: ./dokkubot
+      working-directory: dokkubot
       run: npm install
 
     - name: Deploy to Render
