@@ -1,32 +1,17 @@
+name: Deploy to Render
+
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches:
+      - main  # Trigger the workflow on push to the main branch
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
-
-    - name: List entire directory structure
-      run: ls -alR
-
-    - name: List files in root directory
-      run: ls -al
-
-    - name: Install dependencies
-      working-directory: dokkubot
-      run: npm install
-
-    - name: Deploy to Render
-      env:
-        deploy_url: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-      run: |
-        curl "$deploy_url"
+      - name: Trigger Render Deploy
+        run: curl -X POST https://api.render.com/deploy/srv-cpkgmhsf7o1s73coptp0?key=lkOucL-3B_g
