@@ -1,30 +1,18 @@
-services:
-- type: web
-  name: latestdokkubot
-  runtime: python
-  repo: https://github.com/dokkumeme/dokkubot
-  plan: free
-  envVars:
-  - key: PYTHON_VERSION
-    sync: false
-  - key: LOG_CHANNEL
-    sync: false
-  - key: DATABASE_URI
-    sync: false
-  - key: DATABASE_NAME
-    sync: false
-  - key: CHANNELS
-    sync: false
-  - key: API_HASH
-    sync: false
-  - key: BOT_TOKEN
-    sync: false
-  - key: API_ID
-    sync: false
-  - key: ADMINS
-    sync: false
-  region: oregon
-  buildCommand: pip install -r requirements.txt
-  startCommand: gunicorn app:app & python3 bot.py
-  healthCheckPath: /health
 version: "1"
+services:
+  # A Docker web service
+  - type: web
+    name: latestdokkubot
+    env: python
+    runtime: python
+    repo: https://github.com/dokkumeme/dokkubot
+    plan: free
+    startCommand: gunicorn --timeout 120 --workers 4 app:app & python3 bot.py
+    buildCommand: pip3 install -U -r requirements.txt
+    region: oregon 
+    branch: main
+    numInstances: 1 
+    healthCheckPath: /health
+    envVars:
+      - key: GUNICORN_CMD_ARGS
+        value: "--timeout 120 --workers 4"
