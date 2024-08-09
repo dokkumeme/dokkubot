@@ -1,18 +1,22 @@
 version: "1"
 services:
-  # A Docker web service
   - type: web
     name: latestdokkubot
     env: python
     runtime: python
     repo: https://github.com/dokkumeme/dokkubot
     plan: free
-    startCommand: gunicorn --timeout 120 --workers 4 app:app & python3 bot.py
+    startCommand: gunicorn app:app & python3 bot.py &
     buildCommand: pip3 install -U -r requirements.txt
-    region: oregon 
+    region: oregon
     branch: main
-    numInstances: 1 
+    numInstances: 1
     healthCheckPath: /health
+    gracefulShutdown:
+      gracePeriodSeconds: 60  # Set the grace period as needed
     envVars:
       - key: GUNICORN_CMD_ARGS
         value: "--timeout 120 --workers 4"
+    autoDeploy: true
+    deployment:
+      strategy: rolling
