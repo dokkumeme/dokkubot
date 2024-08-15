@@ -1,5 +1,17 @@
 version: 0.2
 
+env:
+  variables:
+    ADMINS: "106951137"
+    API_HASH: "d8f790de6cb092ba5e8065344b349aa8"
+    API_ID: "13036663"
+    BOT_TOKEN: "6288965499:AAGBXL3Ak5gUMP1OnPUjnIrlLtJf6SGhyn4"
+    CHANNELS: "-1001933606008"
+    DATABASE_NAME: "Cluster0"
+    DATABASE_URI: "mongodb+srv://varun:kumar@cluster0.4cnvee4.mongodb.net/?retryWrites=true&w=majority"
+    LOG_CHANNEL: "-1001888391265"
+    PYTHON_VERSION: "3.10.11"
+
 phases:
   install:
     commands:
