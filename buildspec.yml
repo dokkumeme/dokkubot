@@ -3,11 +3,11 @@ version: 0.2
 phases:
   install:
     commands:
-      - echo "Upgrading pip to the latest version..."
-      - pip install --upgrade pip
       - echo "Creating virtual environment..."
       - python -m venv venv
       - source venv/bin/activate
+      - echo "Upgrading pip, setuptools, and wheel..."
+      - pip install --upgrade pip setuptools wheel
       - echo "Installing dependencies..."
       - pip install -r requirements.txt --verbose
 
