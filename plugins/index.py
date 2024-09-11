@@ -15,7 +15,7 @@ logger.setLevel(logging.INFO)
 lock = asyncio.Lock()
 
 async def handle_flood_wait():
-    await asyncio.sleep(11)  # Default wait time; adjust if necessary
+    await asyncio.sleep(110)  # Default wait time; adjust if necessary
 
 @Client.on_callback_query(filters.regex(r'^index'))
 async def index_files(bot, query):
