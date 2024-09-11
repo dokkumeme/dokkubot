@@ -9,13 +9,10 @@ from database.ia_filterdb import save_file
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils import temp
 import re
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 lock = asyncio.Lock()
 
-async def handle_flood_wait():
-    await asyncio.sleep(110)  # Default wait time; adjust if necessary
 
 @Client.on_callback_query(filters.regex(r'^index'))
 async def index_files(bot, query):
@@ -26,12 +23,12 @@ async def index_files(bot, query):
     if raju == 'reject':
         await query.message.delete()
         await bot.send_message(int(from_user),
-                               f'Your Submission for indexing {chat} has been declined by our moderators.',
+                               f'Your Submission for indexing {chat} has been decliened by our moderators.',
                                reply_to_message_id=int(lst_msg_id))
         return
 
     if lock.locked():
-        return await query.answer('Wait until previous process completes.', show_alert=True)
+        return await query.answer('Wait until previous process complete.', show_alert=True)
     msg = query.message
 
     await query.answer('Processing...⏳', show_alert=True)
@@ -62,7 +59,7 @@ async def send_for_index(bot, message):
         chat_id = match.group(4)
         last_msg_id = int(match.group(5))
         if chat_id.isnumeric():
-            chat_id = int(("-100" + chat_id))
+            chat_id  = int(("-100" + chat_id))
     elif message.forward_from_chat.type == enums.ChatType.CHANNEL:
         last_msg_id = message.forward_from_message_id
         chat_id = message.forward_from_chat.username or message.forward_from_chat.id
@@ -79,13 +76,10 @@ async def send_for_index(bot, message):
         return await message.reply(f'Errors - {e}')
     try:
         k = await bot.get_messages(chat_id, last_msg_id)
-    except FloodWait as e:
-        await handle_flood_wait()
-        return await send_for_index(bot, message)  # Retry after waiting
-    except Exception as e:
-        return await message.reply('Make Sure That I am An Admin In The Channel, if channel is private')
+    except:
+        return await message.reply('Make Sure That Iam An Admin In The Channel, if channel is private')
     if k.empty:
-        return await message.reply('This may be a group and I am not an admin of the group.')
+        return await message.reply('This may be group and iam not a admin of the group.')
 
     if message.from_user.id in ADMINS:
         buttons = [
@@ -94,7 +88,7 @@ async def send_for_index(bot, message):
                                      callback_data=f'index#accept#{chat_id}#{last_msg_id}#{message.from_user.id}')
             ],
             [
-                InlineKeyboardButton('Close', callback_data='close_data'),
+                InlineKeyboardButton('close', callback_data='close_data'),
             ]
         ]
         reply_markup = InlineKeyboardMarkup(buttons)
@@ -106,7 +100,7 @@ async def send_for_index(bot, message):
         try:
             link = (await bot.create_chat_invite_link(chat_id)).invite_link
         except ChatAdminRequired:
-            return await message.reply('Make sure I am an admin in the chat and have permission to invite users.')
+            return await message.reply('Make sure iam an admin in the chat and have permission to invite users.')
     else:
         link = f"@{message.forward_from_chat.username}"
     buttons = [
@@ -123,7 +117,7 @@ async def send_for_index(bot, message):
     await bot.send_message(LOG_CHANNEL,
                            f'#IndexRequest\n\nBy : {message.from_user.mention} (<code>{message.from_user.id}</code>)\nChat ID/ Username - <code> {chat_id}</code>\nLast Message ID - <code>{last_msg_id}</code>\nInviteLink - {link}',
                            reply_markup=reply_markup)
-    await message.reply('Thank you for the contribution, wait for my moderators to verify the files.')
+    await message.reply('ThankYou For the Contribution, Wait For My Moderators to verify the files.')
 
 
 @Client.on_message(filters.command('setskip') & filters.user(ADMINS))
@@ -184,15 +178,8 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                     duplicate += 1
                 elif vnay == 2:
                     errors += 1
-        except FloodWait as e:
-            await asyncio.sleep(e.value)  # Correctly wait for the time specified in the error
-            await index_files_to_db(lst_msg_id, chat, msg, bot)  # Retry after waiting
         except Exception as e:
             logger.exception(e)
             await msg.edit(f'Error: {e}')
         else:
-            await msg.edit(f'Successfully saved <code>{total_files}</code> to dataBase!\n'
-               f'Duplicate Files Skipped: <code>{duplicate}</code>\n'
-               f'Deleted Messages Skipped: <code>{deleted}</code>\n'
-               f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
-               f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>')
+            await msg.edit(f'Succesfully saved <code>{total_files}</code> to dataBase!\nDuplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\nNon-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>')
