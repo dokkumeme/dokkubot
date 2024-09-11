@@ -134,12 +134,26 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
 
                     can = [[InlineKeyboardButton('Cancel', callback_data='index_cancel')]]
                     reply = InlineKeyboardMarkup(can)
-                    try:
-                        await msg.edit_text(
-                        text=f"Total messages fetched: <code>{current}</code>\nTotal messages saved: <code>{total_files}</code>\nDuplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\nNon-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>",
+                    await msg.edit_text(
+                        text=f"Total messages fetched: <code>{current}</code>\n"
+                             f"Total messages saved: <code>{total_files}</code>\n"
+                             f"Duplicate Files Skipped: <code>{duplicate}</code>\n"
+                             f"Deleted Messages Skipped: <code>{deleted}</code>\n"
+                             f"Non-Media messages skipped: <code>{no_media + unsupported}</code>"
+                             f"(Unsupported Media - `{unsupported}` )\n"
+                             f"Errors Occurred: <code>{errors}</code>\n"
+                             f"Memory usage: <code>{mem_usage}%</code>",
                         reply_markup=reply)
-                    except MessageIdInvalid:
-                        logger.error("Failed to edit message: Message ID invalid")
+
+                    # Send update to the log channel
+                    await bot.send_message(LOG_CHANNEL, f"Indexing update:\n"
+                                                        f"Total messages fetched: {current}\n"
+                                                        f"Total messages saved: {total_files}\n"
+                                                        f"Duplicate Files Skipped: {duplicate}\n"
+                                                        f"Deleted Messages Skipped: {deleted}\n"
+                                                        f"Non-Media messages skipped: {no_media + unsupported} (Unsupported Media - {unsupported})\n"
+                                                        f"Errors Occurred: {errors}\n"
+                                                        f"Memory usage: {mem_usage}%")
 
                     # Add delay after every 100 files to avoid overload
                     if current % 100 == 0:
@@ -181,9 +195,20 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
         else:
             try:
                 await msg.edit(f'Successfully saved <code>{total_files}</code> to dataBase!\n'
-                   f'Duplicate Files Skipped: <code>{duplicate}</code>\n'
-                   f'Deleted Messages Skipped: <code>{deleted}</code>\n'
-                   f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
-                   f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>')
+                               f'Duplicate Files Skipped: <code>{duplicate}</code>\n'
+                               f'Deleted Messages Skipped: <code>{deleted}</code>\n'
+                               f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
+                               f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>\n'
+                               f'Memory usage: <code>{mem_usage}%</code>')
+                # Send final update to the log channel
+                await bot.send_message(LOG_CHANNEL, f"Indexing completed:\n"
+                                                    f"Total messages fetched: {current}\n"
+                                                    f"Total messages saved: {total_files}\n"
+                                                    f"Duplicate Files Skipped: {duplicate}\n"
+                                                    f"Deleted Messages Skipped: {deleted}\n"
+                                                    f"Non-Media messages skipped: {no_media + unsupported} (Unsupported Media - {unsupported})\n"
+                                                    f"Errors Occurred: {errors}\n"
+                                                    f"Memory usage: {mem_usage}%")
             except MessageIdInvalid:
                 logger.error("Failed to edit final message: Message ID invalid")
+
