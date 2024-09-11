@@ -196,4 +196,3 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                f'Deleted Messages Skipped: <code>{deleted}</code>\n'
                f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
                f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>')
-``
