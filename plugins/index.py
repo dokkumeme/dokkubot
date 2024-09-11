@@ -2,7 +2,7 @@ import logging
 import asyncio
 import psutil  # Import for resource monitoring
 from pyrogram import Client, filters, enums
-from pyrogram.errors import FloodWait
+from pyrogram.errors import FloodWait, MessageIdInvalid
 from pyrogram.errors.exceptions.bad_request_400 import ChannelInvalid, ChatAdminRequired, UsernameInvalid, UsernameNotModified
 from info import ADMINS
 from info import INDEX_REQ_CHANNEL as LOG_CHANNEL
@@ -171,10 +171,16 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
             await index_files_to_db(lst_msg_id, chat, msg, bot)  # Retry after waiting
         except Exception as e:
             logger.exception(e)
-            await msg.edit(f'Error: {e}')
+            try:
+                await msg.edit(f'Error: {e}')
+            except MessageIdInvalid:
+                logger.error("Failed to edit message: Message ID invalid")
         else:
-            await msg.edit(f'Successfully saved <code>{total_files}</code> to dataBase!\n'
-               f'Duplicate Files Skipped: <code>{duplicate}</code>\n'
-               f'Deleted Messages Skipped: <code>{deleted}</code>\n'
-               f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
-               f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>')
+            try:
+                await msg.edit(f'Successfully saved <code>{total_files}</code> to dataBase!\n'
+                   f'Duplicate Files Skipped: <code>{duplicate}</code>\n'
+                   f'Deleted Messages Skipped: <code>{deleted}</code>\n'
+                   f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
+                   f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>')
+            except MessageIdInvalid:
+                logger.error("Failed to edit final message: Message ID invalid")
