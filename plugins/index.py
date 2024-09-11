@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import psutil  # Import for resource monitoring
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait
 from pyrogram.errors.exceptions.bad_request_400 import ChannelInvalid, ChatAdminRequired, UsernameInvalid, UsernameNotModified
@@ -15,7 +16,7 @@ logger.setLevel(logging.INFO)
 lock = asyncio.Lock()
 
 async def handle_flood_wait():
-    await asyncio.sleep(110)  # Default wait time; adjust if necessary
+    await asyncio.sleep(11)  # Default wait time; adjust if necessary
 
 @Client.on_callback_query(filters.regex(r'^index'))
 async def index_files(bot, query):
@@ -80,50 +81,16 @@ async def send_for_index(bot, message):
     try:
         k = await bot.get_messages(chat_id, last_msg_id)
     except FloodWait as e:
-        await handle_flood_wait()
+        logger.info(f"FloodWait: Sleeping for {e.value} seconds")
+        await asyncio.sleep(e.value)  # Wait and retry
         return await send_for_index(bot, message)  # Retry after waiting
     except Exception as e:
-        return await message.reply('Make Sure That I am An Admin In The Channel, if channel is private')
+        return await message.reply('Make sure that I am an admin in the channel, if it is private.')
     if k.empty:
         return await message.reply('This may be a group and I am not an admin of the group.')
 
-    if message.from_user.id in ADMINS:
-        buttons = [
-            [
-                InlineKeyboardButton('Yes',
-                                     callback_data=f'index#accept#{chat_id}#{last_msg_id}#{message.from_user.id}')
-            ],
-            [
-                InlineKeyboardButton('Close', callback_data='close_data'),
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(buttons)
-        return await message.reply(
-            f'Do you Want To Index This Channel/ Group ?\n\nChat ID/ Username: <code>{chat_id}</code>\nLast Message ID: <code>{last_msg_id}</code>',
-            reply_markup=reply_markup)
-
-    if type(chat_id) is int:
-        try:
-            link = (await bot.create_chat_invite_link(chat_id)).invite_link
-        except ChatAdminRequired:
-            return await message.reply('Make sure I am an admin in the chat and have permission to invite users.')
-    else:
-        link = f"@{message.forward_from_chat.username}"
-    buttons = [
-        [
-            InlineKeyboardButton('Accept Index',
-                                 callback_data=f'index#accept#{chat_id}#{last_msg_id}#{message.from_user.id}')
-        ],
-        [
-            InlineKeyboardButton('Reject Index',
-                                 callback_data=f'index#reject#{chat_id}#{message.id}#{message.from_user.id}'),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(buttons)
-    await bot.send_message(LOG_CHANNEL,
-                           f'#IndexRequest\n\nBy : {message.from_user.mention} (<code>{message.from_user.id}</code>)\nChat ID/ Username - <code> {chat_id}</code>\nLast Message ID - <code>{last_msg_id}</code>\nInviteLink - {link}',
-                           reply_markup=reply_markup)
-    await message.reply('Thank you for the contribution, wait for my moderators to verify the files.')
+    await index_files_to_db(last_msg_id, chat_id, message, bot)
+    await message.reply('Indexing started.')
 
 
 @Client.on_message(filters.command('setskip') & filters.user(ADMINS))
@@ -156,12 +123,26 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                     await msg.edit(f"Successfully Cancelled!!\n\nSaved <code>{total_files}</code> files to dataBase!\nDuplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\nNon-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>")
                     break
                 current += 1
+
+                # Add logging for each file indexed
+                logger.info(f"Indexing file #{current}: {message.id}")
+
                 if current % 20 == 0:
+                    # Log resource usage (memory)
+                    mem_usage = psutil.virtual_memory().percent
+                    logger.info(f"Memory usage: {mem_usage}%")
+
                     can = [[InlineKeyboardButton('Cancel', callback_data='index_cancel')]]
                     reply = InlineKeyboardMarkup(can)
                     await msg.edit_text(
                         text=f"Total messages fetched: <code>{current}</code>\nTotal messages saved: <code>{total_files}</code>\nDuplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\nNon-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>",
                         reply_markup=reply)
+
+                    # Add delay after every 100 files to avoid overload
+                    if current % 100 == 0:
+                        logger.info("Processed 100 files, pausing for 5 seconds...")
+                        await asyncio.sleep(5)
+
                 if message.empty:
                     deleted += 1
                     continue
@@ -185,6 +166,7 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                 elif vnay == 2:
                     errors += 1
         except FloodWait as e:
+            logger.info(f"FloodWait: Sleeping for {e.value} seconds")
             await asyncio.sleep(e.value)  # Correctly wait for the time specified in the error
             await index_files_to_db(lst_msg_id, chat, msg, bot)  # Retry after waiting
         except Exception as e:
