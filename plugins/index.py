@@ -184,8 +184,10 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                     duplicate += 1
                 elif vnay == 2:
                     errors += 1
-        except FloodWait as e:
-            await asyncio.sleep(e.x)  # Wait for the time specified in the error
+       # Inside plugins/index.py at line 188
+except FloodWait as e:
+    await asyncio.sleep(e.value)  # Correctly wait for the time specified in the error
+
             await index_files_to_db(lst_msg_id, chat, msg, bot)  # Retry after waiting
         except Exception as e:
             logger.exception(e)
