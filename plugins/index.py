@@ -184,10 +184,8 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                     duplicate += 1
                 elif vnay == 2:
                     errors += 1
-       # Inside plugins/index.py at line 188
-except FloodWait as e:
-    await asyncio.sleep(e.value)  # Correctly wait for the time specified in the error
-
+        except FloodWait as e:
+            await asyncio.sleep(e.value)  # Correctly wait for the time specified in the error
             await index_files_to_db(lst_msg_id, chat, msg, bot)  # Retry after waiting
         except Exception as e:
             logger.exception(e)
@@ -198,4 +196,4 @@ except FloodWait as e:
                f'Deleted Messages Skipped: <code>{deleted}</code>\n'
                f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
                f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>')
-
+``
