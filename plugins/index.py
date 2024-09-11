@@ -134,9 +134,12 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
 
                     can = [[InlineKeyboardButton('Cancel', callback_data='index_cancel')]]
                     reply = InlineKeyboardMarkup(can)
-                    await msg.edit_text(
+                    try:
+                        await msg.edit_text(
                         text=f"Total messages fetched: <code>{current}</code>\nTotal messages saved: <code>{total_files}</code>\nDuplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\nNon-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>",
                         reply_markup=reply)
+                    except MessageIdInvalid:
+                        logger.error("Failed to edit message: Message ID invalid")
 
                     # Add delay after every 100 files to avoid overload
                     if current % 100 == 0:
