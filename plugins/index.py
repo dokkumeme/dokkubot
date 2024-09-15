@@ -34,6 +34,7 @@ async def index_files(bot, query):
 
     if lock.locked():
         return await query.answer('Wait until previous process completes.', show_alert=True)
+    
     msg = query.message
 
     await query.answer('Processing...⏳', show_alert=True)
@@ -41,12 +42,14 @@ async def index_files(bot, query):
         await bot.send_message(int(from_user),
                                f'Your Submission for indexing {chat} has been accepted by our moderators and will be added soon.',
                                reply_to_message_id=int(lst_msg_id))
+    
     await msg.edit(
         "Starting Indexing",
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton('Cancel', callback_data='index_cancel')]]
         )
     )
+    
     try:
         chat = int(chat)
     except:
@@ -54,7 +57,7 @@ async def index_files(bot, query):
     await index_files_to_db(int(lst_msg_id), chat, msg, bot)
 
 
-@Client.on_message((filters.forwarded | (filters.regex("(https://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/(\d+)$")) & filters.text ) & filters.private & filters.incoming)
+@Client.on_message((filters.forwarded | (filters.regex("(https://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/(\d+)$")) & filters.text) & filters.private & filters.incoming)
 async def send_for_index(bot, message):
     if message.text:
         regex = re.compile("(https://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/(\d+)$")
@@ -70,6 +73,7 @@ async def send_for_index(bot, message):
         chat_id = message.forward_from_chat.username or message.forward_from_chat.id
     else:
         return
+    
     try:
         await bot.get_chat(chat_id)
     except ChannelInvalid:
@@ -79,6 +83,7 @@ async def send_for_index(bot, message):
     except Exception as e:
         logger.exception(e)
         return await message.reply(f'Errors - {e}')
+    
     try:
         k = await bot.get_messages(chat_id, last_msg_id)
     except FloodWait as e:
@@ -87,6 +92,7 @@ async def send_for_index(bot, message):
         return await send_for_index(bot, message)  # Retry after waiting
     except Exception as e:
         return await message.reply('Make sure that I am an admin in the channel, if it is private.')
+    
     if k.empty:
         return await message.reply('This may be a group and I am not an admin of the group.')
 
@@ -115,13 +121,16 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
     deleted = 0
     no_media = 0
     unsupported = 0
-    async with lock:
-        try:
+    try:
+        async with lock:
             current = temp.CURRENT
             temp.CANCEL = False
             async for message in bot.iter_messages(chat, lst_msg_id, temp.CURRENT):
                 if temp.CANCEL:
-                    await msg.edit(f"Successfully Cancelled!!\n\nSaved <code>{total_files}</code> files to dataBase!\nDuplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\nNon-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>")
+                    await msg.edit(f"Successfully Cancelled!!\n\nSaved <code>{total_files}</code> files to dataBase!\n"
+                                   f"Duplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\n"
+                                   f"Non-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}` )\n"
+                                   f"Errors Occurred: <code>{errors}</code>")
                     break
                 current += 1
 
@@ -136,29 +145,28 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                     can = [[InlineKeyboardButton('Cancel', callback_data='index_cancel')]]
                     reply = InlineKeyboardMarkup(can)
                     try:
-    await msg.edit_text(
-        text=f"Total messages fetched: <code>{current}</code>\n"
-             f"Total messages saved: <code>{total_files}</code>\n"
-             f"Duplicate Files Skipped: <code>{duplicate}</code>\n"
-             f"Deleted Messages Skipped: <code>{deleted}</code>\n"
-             f"Non-Media messages skipped: <code>{no_media + unsupported}</code>"
-             f"(Unsupported Media - `{unsupported}` )\n"
-             f"Errors Occurred: <code>{errors}</code>\n"
-             f"Memory usage: <code>{mem_usage}%</code>",
-        reply_markup=reply
-    )
-except MessageIdInvalid:
-    # Handle message too old or invalid message ID
-    logger.error("Message ID invalid or message too old to edit, sending a new message.")
-    await bot.send_message(msg.chat.id, f"Error: Couldn't edit the message, here's an update:\n"
-                                        f"Total messages fetched: <code>{current}</code>\n"
-                                        f"Total messages saved: <code>{total_files}</code>\n"
-                                        f"Duplicate Files Skipped: <code>{duplicate}</code>\n"
-                                        f"Deleted Messages Skipped: <code>{deleted}</code>\n"
-                                        f"Non-Media messages skipped: <code>{no_media + unsupported}</code>"
-                                        f"(Unsupported Media - `{unsupported}` )\n"
-                                        f"Errors Occurred: <code>{errors}</code>\n"
-                                        f"Memory usage: <code>{mem_usage}%</code>")
+                        await msg.edit_text(
+                            text=f"Total messages fetched: <code>{current}</code>\n"
+                                 f"Total messages saved: <code>{total_files}</code>\n"
+                                 f"Duplicate Files Skipped: <code>{duplicate}</code>\n"
+                                 f"Deleted Messages Skipped: <code>{deleted}</code>\n"
+                                 f"Non-Media messages skipped: <code>{no_media + unsupported}</code>"
+                                 f"(Unsupported Media - `{unsupported}` )\n"
+                                 f"Errors Occurred: <code>{errors}</code>\n"
+                                 f"Memory usage: <code>{mem_usage}%</code>",
+                            reply_markup=reply
+                        )
+                    except MessageIdInvalid:
+                        logger.error("Message ID invalid or message too old to edit, sending a new message.")
+                        await bot.send_message(msg.chat.id, f"Error: Couldn't edit the message, here's an update:\n"
+                                                            f"Total messages fetched: <code>{current}</code>\n"
+                                                            f"Total messages saved: <code>{total_files}</code>\n"
+                                                            f"Duplicate Files Skipped: <code>{duplicate}</code>\n"
+                                                            f"Deleted Messages Skipped: <code>{deleted}</code>\n"
+                                                            f"Non-Media messages skipped: <code>{no_media + unsupported}</code>"
+                                                            f"(Unsupported Media - `{unsupported}` )\n"
+                                                            f"Errors Occurred: <code>{errors}</code>\n"
+                                                            f"Memory usage: <code>{mem_usage}%</code>")
 
                     # Send update to the log channel
                     await bot.send_message(LOG_CHANNEL, f"Indexing update:\n"
@@ -197,33 +205,32 @@ except MessageIdInvalid:
                     duplicate += 1
                 elif vnay == 2:
                     errors += 1
-        except FloodWait as e:
-            logger.info(f"FloodWait: Sleeping for {e.value} seconds")
-            await asyncio.sleep(e.value)  # Correctly wait for the time specified in the error
-            await index_files_to_db(lst_msg_id, chat, msg, bot)  # Retry after waiting
-        except Exception as e:
-            logger.exception(e)
-            try:
-                await msg.edit(f'Error: {e}')
-            except MessageIdInvalid:
-                logger.error("Failed to edit message: Message ID invalid")
-        else:
-            try:
-                await msg.edit(f'Successfully saved <code>{total_files}</code> to dataBase!\n'
-                               f'Duplicate Files Skipped: <code>{duplicate}</code>\n'
-                               f'Deleted Messages Skipped: <code>{deleted}</code>\n'
-                               f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
-                               f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>\n'
-                               f'Memory usage: <code>{mem_usage}%</code>')
-                # Send final update to the log channel
-                await bot.send_message(LOG_CHANNEL, f"Indexing completed:\n"
-                                                    f"Total messages fetched: {current}\n"
-                                                    f"Total messages saved: {total_files}\n"
-                                                    f"Duplicate Files Skipped: {duplicate}\n"
-                                                    f"Deleted Messages Skipped: {deleted}\n"
-                                                    f"Non-Media messages skipped: {no_media + unsupported} (Unsupported Media - {unsupported})\n"
-                                                    f"Errors Occurred: {errors}\n"
-                                                    f"Memory usage: {mem_usage}%")
-            except MessageIdInvalid:
-                logger.error("Failed to edit final message: Message ID invalid")
-
+    except FloodWait as e:
+        logger.info(f"FloodWait: Sleeping for {e.value} seconds")
+        await asyncio.sleep(e.value)  # Correctly wait for the time specified in the error
+        await index_files_to_db(lst_msg_id, chat, msg, bot)  # Retry after waiting
+    except Exception as e:
+        logger.exception(e)
+        try:
+            await msg.edit(f'Error: {e}')
+        except MessageIdInvalid:
+            logger.error("Failed to edit message: Message ID invalid")
+    finally:
+        try:
+            await msg.edit(f'Successfully saved <code>{total_files}</code> to dataBase!\n'
+                           f'Duplicate Files Skipped: <code>{duplicate}</code>\n'
+                           f'Deleted Messages Skipped: <code>{deleted}</code>\n'
+                           f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
+                           f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>\n'
+                           f'Memory usage: <code>{mem_usage}%</code>')
+            # Send final update to the log channel
+            await bot.send_message(LOG_CHANNEL, f"Indexing completed:\n"
+                                                f"Total messages fetched: {current}\n"
+                                                f"Total messages saved: {total_files}\n"
+                                                f"Duplicate Files Skipped: {duplicate}\n"
+                                                f"Deleted Messages Skipped: {deleted}\n"
+                                                f"Non-Media messages skipped: {no_media + unsupported} (Unsupported Media - {unsupported})\n"
+                                                f"Errors Occurred: {errors}\n"
+                                                f"Memory usage: {mem_usage}%")
+        except MessageIdInvalid:
+            logger.error("Failed to edit final message: Message ID invalid")
