@@ -134,11 +134,9 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                     break
                 current += 1
 
-                # Add logging for each file indexed
                 logger.info(f"Indexing file #{current}: {message.id}")
 
                 if current % 20 == 0:
-                    # Log resource usage (memory)
                     mem_usage = psutil.virtual_memory().percent
                     logger.info(f"Memory usage: {mem_usage}%")
 
@@ -168,7 +166,6 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                                                             f"Errors Occurred: <code>{errors}</code>\n"
                                                             f"Memory usage: <code>{mem_usage}%</code>")
 
-                    # Send update to the log channel
                     await bot.send_message(LOG_CHANNEL, f"Indexing update:\n"
                                                         f"Total messages fetched: {current}\n"
                                                         f"Total messages saved: {total_files}\n"
@@ -178,7 +175,6 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                                                         f"Errors Occurred: {errors}\n"
                                                         f"Memory usage: {mem_usage}%")
 
-                    # Add delay after every 100 files to avoid overload
                     if current % 100 == 0:
                         logger.info("Processed 100 files, pausing for 5 seconds...")
                         await asyncio.sleep(5)
@@ -207,14 +203,15 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                     errors += 1
     except FloodWait as e:
         logger.info(f"FloodWait: Sleeping for {e.value} seconds")
-        await asyncio.sleep(e.value)  # Correctly wait for the time specified in the error
-        await index_files_to_db(lst_msg_id, chat, msg, bot)  # Retry after waiting
+        await asyncio.sleep(e.value)
+        await index_files_to_db(lst_msg_id, chat, msg, bot)
     except Exception as e:
         logger.exception(e)
         try:
             await msg.edit(f'Error: {e}')
         except MessageIdInvalid:
             logger.error("Failed to edit message: Message ID invalid")
+            await bot.send_message(msg.chat.id, f"Error occurred: {e}")
     finally:
         try:
             await msg.edit(f'Successfully saved <code>{total_files}</code> to dataBase!\n'
@@ -223,7 +220,7 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                            f'Non-Media messages skipped: <code>{no_media + unsupported}</code>'
                            f'(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>\n'
                            f'Memory usage: <code>{mem_usage}%</code>')
-            # Send final update to the log channel
+            
             await bot.send_message(LOG_CHANNEL, f"Indexing completed:\n"
                                                 f"Total messages fetched: {current}\n"
                                                 f"Total messages saved: {total_files}\n"
@@ -234,3 +231,9 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                                                 f"Memory usage: {mem_usage}%")
         except MessageIdInvalid:
             logger.error("Failed to edit final message: Message ID invalid")
+            await bot.send_message(msg.chat.id, f"Indexing completed with <code>{total_files}</code> files saved.\n"
+                                                f"Duplicate Files Skipped: <code>{duplicate}</code>\n"
+                                                f"Deleted Messages Skipped: <code>{deleted}</code>\n"
+                                                f"Non-Media messages skipped: <code>{no_media + unsupported}</code>"
+                                                f"(Unsupported Media - `{unsupported}` )\nErrors Occurred: <code>{errors}</code>\n"
+                                                f"Memory usage: <code>{mem_usage}%</code>")
