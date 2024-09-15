@@ -1,91 +1,206 @@
+import logging
+import asyncio
+from pyrogram import Client, filters, enums
+from pyrogram.errors import FloodWait, MessageIdInvalid
+from pyrogram.errors.exceptions.bad_request_400 import ChannelInvalid, ChatAdminRequired, UsernameInvalid, UsernameNotModified
+from info import ADMINS
+from info import INDEX_REQ_CHANNEL as LOG_CHANNEL
+from database.ia_filterdb import save_file
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from utils import temp
 import re
-from os import environ
-from Script import script 
 
-id_pattern = re.compile(r'^.\d+$')
-def is_enabled(value, default):
-    if value.lower() in ["true", "yes", "1", "enable", "y"]:
-        return True
-    elif value.lower() in ["false", "no", "0", "disable", "n"]:
-        return False
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+lock = asyncio.Lock()
+
+
+@Client.on_callback_query(filters.regex(r'^index'))
+async def index_files(bot, query):
+    if query.data.startswith('index_cancel'):
+        temp.CANCEL = True
+        return await query.answer("Cancelling Indexing")
+    _, raju, chat, lst_msg_id, from_user = query.data.split("#")
+    if raju == 'reject':
+        await query.message.delete()
+        await bot.send_message(int(from_user),
+                               f'Your Submission for indexing {chat} has been declined by our moderators.',
+                               reply_to_message_id=int(lst_msg_id))
+        return
+
+    if lock.locked():
+        return await query.answer('Wait until previous process complete.', show_alert=True)
+
+    msg = query.message
+    await query.answer('Processing...⏳', show_alert=True)
+
+    if int(from_user) not in ADMINS:
+        await bot.send_message(int(from_user),
+                               f'Your Submission for indexing {chat} has been accepted by our moderators and will be added soon.',
+                               reply_to_message_id=int(lst_msg_id))
+
+    await msg.edit(
+        "Starting Indexing",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton('Cancel', callback_data='index_cancel')]]
+        )
+    )
+    try:
+        chat = int(chat)
+    except:
+        chat = chat
+    await index_files_to_db(int(lst_msg_id), chat, msg, bot)
+
+
+@Client.on_message((filters.forwarded | (filters.regex("(https://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/(\d+)$")) & filters.text) & filters.private & filters.incoming)
+async def send_for_index(bot, message):
+    if message.text:
+        regex = re.compile("(https://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/(\d+)$")
+        match = regex.match(message.text)
+        if not match:
+            return await message.reply('Invalid link')
+        chat_id = match.group(4)
+        last_msg_id = int(match.group(5))
+        if chat_id.isnumeric():
+            chat_id = int(("-100" + chat_id))
+    elif message.forward_from_chat.type == enums.ChatType.CHANNEL:
+        last_msg_id = message.forward_from_message_id
+        chat_id = message.forward_from_chat.username or message.forward_from_chat.id
     else:
-        return default
+        return
 
-# Bot information
-SESSION = environ.get('SESSION', 'Media_search')
-API_ID = int(environ['API_ID'])
-API_HASH = environ['API_HASH']
-BOT_TOKEN = environ['BOT_TOKEN']
+    try:
+        await bot.get_chat(chat_id)
+    except ChannelInvalid:
+        return await message.reply('This may be a private channel / group. Make me an admin over there to index the files.')
+    except (UsernameInvalid, UsernameNotModified):
+        return await message.reply('Invalid Link specified.')
+    except Exception as e:
+        logger.exception(e)
+        return await message.reply(f'Errors - {e}')
 
-# Bot settings
-CACHE_TIME = int(environ.get('CACHE_TIME', 300))
-USE_CAPTION_FILTER = bool(environ.get('USE_CAPTION_FILTER', True))
+    try:
+        k = await bot.get_messages(chat_id, last_msg_id)
+    except:
+        return await message.reply('Make Sure That I am an Admin In The Channel, if the channel is private')
+    if k.empty:
+        return await message.reply('This may be a group and I am not an admin of the group.')
 
-PICS = (environ.get('PICS', 'https://telegra.ph/file/0da5f625422be278e5ace.jpg')).split()
-NOR_IMG = environ.get("NOR_IMG", "https://telegra.ph/file/0da5f625422be278e5ace.jpg")
-MELCOW_VID = environ.get("MELCOW_VID", "https://telegra.ph/file/2c1d82a49e75d97983afa.mp4")
-SPELL_IMG = environ.get("SPELL_IMG", "https://telegra.ph/file/2cfd83c205e3d8876caf2.jpg")
+    if message.from_user.id in ADMINS:
+        buttons = [
+            [
+                InlineKeyboardButton('Yes',
+                                     callback_data=f'index#accept#{chat_id}#{last_msg_id}#{message.from_user.id}')
+            ],
+            [
+                InlineKeyboardButton('Close', callback_data='close_data'),
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(buttons)
+        return await message.reply(
+            f'Do you want to index this channel/group?\n\nChat ID/Username: <code>{chat_id}</code>\nLast Message ID: <code>{last_msg_id}</code>',
+            reply_markup=reply_markup)
 
-# Admins, Channels & Users
-ADMINS = [int(admin) if id_pattern.search(admin) else admin for admin in environ.get('ADMINS', '').split()]
-CHANNELS = [int(ch) if id_pattern.search(ch) else ch for ch in environ.get('CHANNELS', '0').split()]
-auth_users = [int(user) if id_pattern.search(user) else user for user in environ.get('AUTH_USERS', '').split()]
-AUTH_USERS = (auth_users + ADMINS) if auth_users else []
-auth_channel = environ.get('AUTH_CHANNEL')
-auth_grp = environ.get('AUTH_GROUP')
-AUTH_CHANNEL = int(auth_channel) if auth_channel and id_pattern.search(auth_channel) else None
-AUTH_GROUPS = [int(ch) for ch in auth_grp.split()] if auth_grp else None
-support_chat_id = environ.get('SUPPORT_CHAT_ID')
-reqst_channel = environ.get('REQST_CHANNEL_ID')
-REQST_CHANNEL = int(reqst_channel) if reqst_channel and id_pattern.search(reqst_channel) else None
-SUPPORT_CHAT_ID = int(support_chat_id) if support_chat_id and id_pattern.search(support_chat_id) else None
-NO_RESULTS_MSG = bool(environ.get("NO_RESULTS_MSG", False))
+    if type(chat_id) is int:
+        try:
+            link = (await bot.create_chat_invite_link(chat_id)).invite_link
+        except ChatAdminRequired:
+            return await message.reply('Make sure I am an admin in the chat and have permission to invite users.')
+    else:
+        link = f"@{message.forward_from_chat.username}"
 
-# MongoDB information
-DATABASE_URI = environ.get('DATABASE_URI', "")
-DATABASE_NAME = environ.get('DATABASE_NAME', "Cluster0")
-COLLECTION_NAME = environ.get('COLLECTION_NAME', 'Dokku_files')
+    buttons = [
+        [
+            InlineKeyboardButton('Accept Index',
+                                 callback_data=f'index#accept#{chat_id}#{last_msg_id}#{message.from_user.id}')
+        ],
+        [
+            InlineKeyboardButton('Reject Index',
+                                 callback_data=f'index#reject#{chat_id}#{message.id}#{message.from_user.id}'),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(buttons)
 
-# Others
-IS_VERIFY = bool(environ.get('IS_VERIFY', False))
-HOW_TO_VERIFY = environ.get('HOW_TO_VERIFY', "https://t.me/dmmstreaming/6")
-VERIFY2_URL = environ.get('VERIFY2_URL', "tnshort.net")
-VERIFY2_API = environ.get('VERIFY2_API', "1749660ec728b59e1569529cb19e97e952d52b54")
-SHORTLINK_URL = environ.get('SHORTLINK_URL', 'tnshort.net')
-SHORTLINK_API = environ.get('SHORTLINK_API', '1749660ec728b59e1569529cb19e97e952d52b54')
-IS_SHORTLINK = bool(environ.get('IS_SHORTLINK', True))
-DELETE_CHANNELS = [int(dch) if id_pattern.search(dch) else dch for dch in environ.get('DELETE_CHANNELS', '0').split()]
-MAX_B_TN = environ.get("MAX_B_TN", "5")
-MAX_BTN = is_enabled((environ.get('MAX_BTN', "False")), False)
-PORT = environ.get("PORT", "8080")
-GRP_LNK = environ.get('GRP_LNK', 'https://t.me/dokkumemeszz')
-CHNL_LNK = environ.get('CHNL_LNK', 'https://t.me/+HYTwdjhGcKQ1NGJl')
-MSG_ALRT = environ.get('MSG_ALRT', 'Ennada Paakura?')
-LOG_CHANNEL = int(environ.get('LOG_CHANNEL', 0))
-SUPPORT_CHAT = environ.get('SUPPORT_CHAT', 'dokkumemez')
-P_TTI_SHOW_OFF = is_enabled((environ.get('P_TTI_SHOW_OFF', "False")), False)
-IMDB = is_enabled((environ.get('IMDB', "True")), True)
-AUTO_FFILTER = is_enabled((environ.get('AUTO_FFILTER', "True")), True)
-AUTO_DELETE = is_enabled((environ.get('AUTO_DELETE', "False")), False)
-SINGLE_BUTTON = is_enabled((environ.get('SINGLE_BUTTON', "True")), True)
-CUSTOM_FILE_CAPTION = environ.get("CUSTOM_FILE_CAPTION", f"{script.CAPTION}")
-BATCH_FILE_CAPTION = environ.get("BATCH_FILE_CAPTION", CUSTOM_FILE_CAPTION)
-IMDB_TEMPLATE = environ.get("IMDB_TEMPLATE", f"{script.IMDB_TEMPLATE_TXT}")
-LONG_IMDB_DESCRIPTION = is_enabled(environ.get("LONG_IMDB_DESCRIPTION", "False"), False)
-SPELL_CHECK_REPLY = is_enabled(environ.get("SPELL_CHECK_REPLY", "True"), True)
-MAX_LIST_ELM = environ.get("MAX_LIST_ELM", None)
-INDEX_REQ_CHANNEL = int(environ.get('INDEX_REQ_CHANNEL', LOG_CHANNEL))
-FILE_STORE_CHANNEL = [int(ch) for ch in (environ.get('FILE_STORE_CHANNEL', '')).split()]
-MELCOW_NEW_USERS = is_enabled((environ.get('MELCOW_NEW_USERS', "True")), True)
-PROTECT_CONTENT = is_enabled((environ.get('PROTECT_CONTENT', "False")), False)
-PUBLIC_FILE_STORE = is_enabled((environ.get('PUBLIC_FILE_STORE', "True")), True)
+    await bot.send_message(LOG_CHANNEL,
+                           f'#IndexRequest\n\nBy : {message.from_user.mention} (<code>{message.from_user.id}</code>)\nChat ID/Username: <code>{chat_id}</code>\nLast Message ID: <code>{last_msg_id}</code>\nInvite Link: {link}',
+                           reply_markup=reply_markup)
+    await message.reply('Thank you for the contribution. Wait for my moderators to verify the files.')
 
-LOG_STR = "Current Cusomized Configurations are:-\n"
-LOG_STR += ("IMDB Results are enabled, Bot will be showing imdb details for you queries.\n" if IMDB else "IMBD Results are disabled.\n")
-LOG_STR += ("P_TTI_SHOW_OFF found , Users will be redirected to send /start to Bot PM instead of sending file file directly\n" if P_TTI_SHOW_OFF else "P_TTI_SHOW_OFF is disabled files will be send in PM, instead of sending start.\n")
-LOG_STR += ("SINGLE_BUTTON is Found, filename and files size will be shown in a single button instead of two separate buttons\n" if SINGLE_BUTTON else "SINGLE_BUTTON is disabled , filename and file_sixe will be shown as different buttons\n")
-LOG_STR += (f"CUSTOM_FILE_CAPTION enabled with value {CUSTOM_FILE_CAPTION}, your files will be send along with this customized caption.\n" if CUSTOM_FILE_CAPTION else "No CUSTOM_FILE_CAPTION Found, Default captions of file will be used.\n")
-LOG_STR += ("Long IMDB storyline enabled." if LONG_IMDB_DESCRIPTION else "LONG_IMDB_DESCRIPTION is disabled , Plot will be shorter.\n")
-LOG_STR += ("Spell Check Mode Is Enabled, bot will be suggesting related movies if movie not found\n" if SPELL_CHECK_REPLY else "SPELL_CHECK_REPLY Mode disabled\n")
-LOG_STR += (f"MAX_LIST_ELM Found, long list will be shortened to first {MAX_LIST_ELM} elements\n" if MAX_LIST_ELM else "Full List of casts and crew will be shown in imdb template, restrict them by adding a value to MAX_LIST_ELM\n")
-LOG_STR += f"Your current IMDB template is {IMDB_TEMPLATE}"
+
+@Client.on_message(filters.command('setskip') & filters.user(ADMINS))
+async def set_skip_number(bot, message):
+    if ' ' in message.text:
+        _, skip = message.text.split(" ")
+        try:
+            skip = int(skip)
+        except:
+            return await message.reply("Skip number should be an integer.")
+        await message.reply(f"Successfully set SKIP number as {skip}")
+        temp.CURRENT = int(skip)
+    else:
+        await message.reply("Provide a skip number")
+
+
+async def index_files_to_db(lst_msg_id, chat, msg, bot):
+    total_files = 0
+    duplicate = 0
+    errors = 0
+    deleted = 0
+    no_media = 0
+    unsupported = 0
+
+    async with lock:
+        try:
+            current = temp.CURRENT
+            temp.CANCEL = False
+            async for message in bot.iter_messages(chat, lst_msg_id, temp.CURRENT):
+                if temp.CANCEL:
+                    await msg.edit(f"Successfully Cancelled!\n\nSaved <code>{total_files}</code> files to database.\nDuplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\nNon-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}`)\nErrors Occurred: <code>{errors}</code>")
+                    break
+
+                current += 1
+
+                if current % 20 == 0:
+                    try:
+                        await msg.edit_text(
+                            text=f"Total messages fetched: <code>{current}</code>\nTotal messages saved: <code>{total_files}</code>\nDuplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\nNon-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}`)\nErrors Occurred: <code>{errors}</code>",
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Cancel', callback_data='index_cancel')]]))
+                    except MessageIdInvalid:
+                        logger.error("Message too old to edit, sending new message.")
+                        await bot.send_message(msg.chat.id, f"Progress Update:\nTotal messages fetched: {current}\nTotal saved: {total_files}")
+
+                if message.empty:
+                    deleted += 1
+                    continue
+                elif not message.media:
+                    no_media += 1
+                    continue
+                elif message.media not in [enums.MessageMediaType.VIDEO, enums.MessageMediaType.AUDIO, enums.MessageMediaType.DOCUMENT]:
+                    unsupported += 1
+                    continue
+
+                media = getattr(message, message.media.value, None)
+                if not media:
+                    unsupported += 1
+                    continue
+                media.file_type = message.media.value
+                media.caption = message.caption
+                aynav, vnay = await save_file(media)
+
+                if aynav:
+                    total_files += 1
+                elif vnay == 0:
+                    duplicate += 1
+                elif vnay == 2:
+                    errors += 1
+
+        except FloodWait as e:
+            logger.warning(f"FloodWait: Sleeping for {e.value} seconds.")
+            await asyncio.sleep(e.value)
+            return await index_files_to_db(lst_msg_id, chat, msg, bot)
+
+        except Exception as e:
+            logger.exception(e)
+            await msg.edit(f'Error: {e}')
+        else:
+            await msg.edit(f'Successfully saved <code>{total_files}</code> to the database.\nDuplicate Files Skipped: <code>{duplicate}</code>\nDeleted Messages Skipped: <code>{deleted}</code>\nNon-Media messages skipped: <code>{no_media + unsupported}</code>(Unsupported Media - `{unsupported}`)\nErrors Occurred: <code>{errors}</code>')
