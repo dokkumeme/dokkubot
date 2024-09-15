@@ -10,6 +10,7 @@ from database.ia_filterdb import save_file
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils import temp
 import re
+from pyrogram.errors import MessageIdInvalid
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -134,14 +135,30 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
 
                     can = [[InlineKeyboardButton('Cancel', callback_data='index_cancel')]]
                     reply = InlineKeyboardMarkup(can)
-                    await msg.edit_text(
-                        text=f"Total messages fetched: <code>{current}</code>\n"
-                             f"Total messages saved: <code>{total_files}</code>\n"
-                             f"Duplicate Files Skipped: <code>{duplicate}</code>\n"
-                             f"Deleted Messages Skipped: <code>{deleted}</code>\n"
-                             f"Non-Media messages skipped: <code>{no_media + unsupported}</code>"
-                             f"(Unsupported Media - `{unsupported}` )\n",
-                        reply_markup=reply)
+                    try:
+    await msg.edit_text(
+        text=f"Total messages fetched: <code>{current}</code>\n"
+             f"Total messages saved: <code>{total_files}</code>\n"
+             f"Duplicate Files Skipped: <code>{duplicate}</code>\n"
+             f"Deleted Messages Skipped: <code>{deleted}</code>\n"
+             f"Non-Media messages skipped: <code>{no_media + unsupported}</code>"
+             f"(Unsupported Media - `{unsupported}` )\n"
+             f"Errors Occurred: <code>{errors}</code>\n"
+             f"Memory usage: <code>{mem_usage}%</code>",
+        reply_markup=reply
+    )
+except MessageIdInvalid:
+    # Handle message too old or invalid message ID
+    logger.error("Message ID invalid or message too old to edit, sending a new message.")
+    await bot.send_message(msg.chat.id, f"Error: Couldn't edit the message, here's an update:\n"
+                                        f"Total messages fetched: <code>{current}</code>\n"
+                                        f"Total messages saved: <code>{total_files}</code>\n"
+                                        f"Duplicate Files Skipped: <code>{duplicate}</code>\n"
+                                        f"Deleted Messages Skipped: <code>{deleted}</code>\n"
+                                        f"Non-Media messages skipped: <code>{no_media + unsupported}</code>"
+                                        f"(Unsupported Media - `{unsupported}` )\n"
+                                        f"Errors Occurred: <code>{errors}</code>\n"
+                                        f"Memory usage: <code>{mem_usage}%</code>")
 
                     # Send update to the log channel
                     await bot.send_message(LOG_CHANNEL, f"Indexing update:\n"
